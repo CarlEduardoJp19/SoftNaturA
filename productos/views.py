@@ -17,6 +17,7 @@ from usuarios.models import Usuario, Pedido, PedidoItem
 from usuarios.decorators import admin_required
 from usuarios.models import Devolucion, Pedido  # Importar de usuarios
 from usuarios.decorators import login_required
+from django.core.paginator import Paginator
 
 
 # ---------------------- VISTAS DE PRODUCTOS ----------------------
@@ -409,6 +410,7 @@ def listar_categorias(request):
     categorias = Category.objects.all()
     productos = Producto.objects.all()
     form = CategoriaForm()
+    form_producto = ProductoForm()
 
     if request.method == "POST":
         form = CategoriaForm(request.POST)
@@ -419,7 +421,8 @@ def listar_categorias(request):
     return render(request, 'productos/list_produc.html', {
         'categorias': categorias,
         'productos': productos,
-        'form': form
+        'form': form,
+        'form_producto': form_producto,
     })
 
 
@@ -569,11 +572,14 @@ def devoluciones(request):
     mis_devoluciones = Devolucion.objects.filter(
         usuario=request.user
     ).select_related('producto', 'pedido').order_by('-fecha_solicitud')
+    paginator = Paginator(mis_devoluciones, 5)  # 10 devoluciones por página
+    page_number = request.GET.get('page')
+    devoluciones_page = paginator.get_page(page_number)
 
     context = {
         'productos_devolubles': productos_json,
         'pedidos_agrupados': pedidos_agrupados.values(),
-        'devoluciones': mis_devoluciones
+        'devoluciones': devoluciones_page
     }
 
     return render(request, 'productos/devoluciones.html', context)

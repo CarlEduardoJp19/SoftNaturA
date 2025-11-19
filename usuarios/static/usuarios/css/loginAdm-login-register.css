@@ -454,19 +454,6 @@
         transform: translateX(-3px);
     }
 
-    .alerta-inactividad {
-    background: #ffdddd;
-    color: #b30000;
-    border: 1px solid #ff6b6b;
-    padding: 12px;
-    margin-bottom: 15px;
-    border-radius: 6px;
-    text-align: center;
-    font-weight: bold;
-    font-size: 14px;
-}
-
-
     /* Tablets grandes */
     @media (max-width: 1024px) {
         .contenedor-form {

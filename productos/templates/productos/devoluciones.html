@@ -18,6 +18,7 @@
             <i class="fa fa-plus-circle"></i> Solicitar Devolución
         </button>
     </div>
+
     <!-- TAB 1: LISTA DE DEVOLUCIONES -->
     <div id="lista" class="tab-content active">
         {% if devoluciones %}
@@ -25,7 +26,8 @@
             {% for devolucion in devoluciones %}
             <li class="devolucion-item">
                 <div class="devolucion-info">
-                    <strong>Devolución #{{ devolucion.id }}</strong><br>Producto: {{ devolucion.producto.nombProduc }}<br>
+                    <strong>Devolución #{{ devolucion.id }}</strong><br>
+                    Producto: {{ devolucion.producto.nombProduc }}<br>
                     Fecha: {{ devolucion.fecha_solicitud|date:"d M Y" }}<br>
                     Motivo: {{ devolucion.motivo|truncatewords:10 }}
                 </div>
@@ -37,6 +39,26 @@
             </li>
             {% endfor %}
         </ul>
+
+        <!-- PAGINACIÓN -->
+        <div class="paginacion">
+            {% if devoluciones.has_previous %}
+                <a href="?page={{ devoluciones.previous_page_number }}">« Anterior</a>
+            {% endif %}
+
+            {% for num in devoluciones.paginator.page_range %}
+                {% if devoluciones.number == num %}
+                    <strong>{{ num }}</strong>
+                {% else %}
+                    <a href="?page={{ num }}">{{ num }}</a>
+                {% endif %}
+            {% endfor %}
+
+            {% if devoluciones.has_next %}
+                <a href="?page={{ devoluciones.next_page_number }}">Siguiente »</a>
+            {% endif %}
+        </div>
+
         {% else %}
         <div class="no-devoluciones">
             <i class="fa fa-inbox" style="font-size: 3rem; color: #ddd;"></i>
@@ -114,7 +136,6 @@
                 <input type="file" name="foto1" id="foto1" accept="image/*" style="display:none;">
                 <input type="file" name="foto2" id="foto2" accept="image/*" style="display:none;">
                 <input type="file" name="foto3" id="foto3" accept="image/*" style="display:none;">
-
             </div>
 
             <button type="submit" class="btn-submit"><i class="fa fa-paper-plane"></i> Enviar Solicitud de Devolución</button>

@@ -91,32 +91,32 @@
     </div>
 
     <!-- Modal Agregar Producto -->
-    <div id="modalAgregarProducto" class="modalProduc" style="display:none;">
+    <div id="modalAgregarProducto" class="modalProduc">
         <div class="modal-content-produc">
             <h2>Agregar Producto</h2>
             <form method="POST" enctype="multipart/form-data" action="{% url 'productos:agregar_producto' %}">
                 {% csrf_token %}
 
                 <label for="nombreProduc">Nombre del producto</label>
-                {{ form.nombProduc }}
+                {{ form_producto.nombProduc }}
 
                 <label for="descripcion">Descripción</label>
-                {{ form.descripcion }}
+                {{ form_producto.descripcion }}
 
                 <label for="precio">Precio</label>
-                {{ form.precio|intcomma|default:"0" }}
+                {{ form_producto.precio|intcomma|default:"0" }}
 
                 <label for="categoriaProduc">Categoría</label>
-                {{ form.Categoria }}
+                {{ form_producto.Categoria }}
 
                 <label for="stock">Cantidad en stock</label>
-                {{ form.stock }}
+                {{ form_producto.stock }}
 
                 <label for="fecha_caducidad">Fecha de caducidad</label>
-                {{ form.fecha_caducidad }}
+                {{ form_producto.fecha_caducidad }}
 
                 <label for="imgProduc">Imagen</label>
-                {{ form.imgProduc }}
+                {{ form_producto.imgProduc }}
 
                 <div class="acciones">
                     <button type="submit" class="btn-guardar-produc">Guardar</button>

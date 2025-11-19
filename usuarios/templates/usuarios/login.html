@@ -14,15 +14,6 @@
     <a href="{% url 'productos:producto' %}" class="btn-volver">← Volver</a>
     <div class="contenedor-form">
         <img src="{% static 'usuarios/img/loginimg.png' %}" alt="Logo Unidos pensando en su salud">
-        <!-- 🔥 AQUI AGREGAS EL MENSAJE DE INACTIVIDAD -->
-        {% if messages %}
-            {% for message in messages %}
-                <div class="alerta-inactividad {{ message.tags }}">
-                    {{ message }}
-                </div>
-            {% endfor %}
-        {% endif %}
-        <!-- 🔥 FIN -->
         <form method="post" class="contenedor-login">
             {% csrf_token %}
 
