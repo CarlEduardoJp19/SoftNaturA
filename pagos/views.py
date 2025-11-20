@@ -3,16 +3,16 @@ import hashlib
 import time
 import json
 from django.shortcuts import render, redirect
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.conf import settings
 from .models import Transaccion
 from usuarios.models import Pedido, Direccion, PedidoItem
 from productos.models import Producto
-
 import hashlib
 import time
 from django.shortcuts import render, redirect
 from django.conf import settings
+from django.views.decorators.csrf import csrf_exempt
 from usuarios.models import Pedido, PedidoItem
 from django.db import transaction
 from .models import Transaccion
@@ -184,3 +184,41 @@ def payment_response(request):
     }
 
     return render(request, 'pagos/payment_response.html',context)
+
+@csrf_exempt
+def webhook_bold(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Método no permitido"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except:
+        return JsonResponse({"error": "JSON inválido"}, status=400)
+
+    print("📩 WEBHOOK DE BOLD RECIBIDO:", data)
+
+    event = data.get("event")
+    order_id = data.get("order_id")
+
+    if not order_id:
+        return JsonResponse({"error": "order_id faltante"}, status=400)
+
+    # Buscar el pedido
+    try:
+        pedido = Pedido.objects.get(order_id=order_id)
+    except Pedido.DoesNotExist:
+        return JsonResponse({"error": "Pedido no encontrado"}, status=404)
+
+    # Actualizar estados según el evento recibido
+    if event == "payment_success":
+        pedido.estado = "pagado"
+        pedido.pago = True
+    elif event == "payment_failed":
+        pedido.estado = "fallido"
+        pedido.pago = False
+    elif event == "payment_refunded":
+        pedido.estado = "reembolsado"
+
+    pedido.save()
+
+    return JsonResponse({"status": "ok"})

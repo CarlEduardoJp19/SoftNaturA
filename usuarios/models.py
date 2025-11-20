@@ -1,9 +1,9 @@
 from django.conf import settings
 from django.db import models
-from productos.models import Producto
 from cloudinary.models import CloudinaryField
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 
+# ====================== USUARIO ======================
 class UsuarioManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
@@ -29,9 +29,8 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
     nombre = models.CharField(max_length=150, unique=True)
     phone_number = models.CharField(max_length=20, blank=True)
     rol = models.CharField(max_length=20, choices=ROLES, default='cliente')
-
-    is_active = models.BooleanField(default=True)  
-    is_staff = models.BooleanField(default=False)  
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
 
     objects = UsuarioManager()
 
@@ -41,45 +40,39 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.nombre
 
+# ====================== PEDIDO ======================
 class Pedido(models.Model):
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     order_id = models.CharField(max_length=100, unique=True, null=True, blank=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
-    estado = models.CharField(max_length= 30, choices=[
+    estado = models.CharField(max_length=30, choices=[
         ('pendiente','Pendiente'),
         ('enviado', 'Enviado'),
         ('entregado', 'Entregado'),
     ], default='pendiente')
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    pago = models.BooleanField(default=True)  # 🔹 NUEVO CAMPO
-    
+    pago = models.BooleanField(default=True)
 
     def __str__(self):
         return f"Pedido #{self.id} de {self.usuario.email}"
-    
+
 class PedidoItem(models.Model):
-    """
-    Representa cada producto dentro de un pedido.
-    """
-    pedido = models.ForeignKey(Pedido, related_name="items", on_delete=models.CASCADE, verbose_name='Pedido')
-    producto = models.ForeignKey('productos.Producto', on_delete=models.CASCADE, verbose_name='Producto')
-    cantidad = models.PositiveIntegerField(default=1, verbose_name='Cantidad')
-    precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Precio unitario')
+    pedido = models.ForeignKey('Pedido', related_name="items", on_delete=models.CASCADE)
+    producto = models.ForeignKey('productos.Producto', on_delete=models.CASCADE)
+    cantidad = models.PositiveIntegerField(default=1)
+    precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     class Meta:
         verbose_name = 'Item de Pedido'
         verbose_name_plural = 'Items de Pedido'
 
-    def __str__(self):  # 👈 Corregido (antes estaba mal escrito)
+    def __str__(self):
         return f"{self.cantidad} x {self.producto.nombProduc}"
 
     def subtotal(self):
-        """Calcula el subtotal del ítem"""
         return self.cantidad * self.precio_unitario
 
-
-    
-    
+# ====================== MENSAJES ======================
 class Mensaje(models.Model):
     nombre = models.CharField(max_length=150)
     correo = models.EmailField()
@@ -89,46 +82,38 @@ class Mensaje(models.Model):
 
     def __str__(self):
         return f"{self.nombre} - {self.asunto}"
-    
 
-# ====================== MODELO DE DEVOLUCIONES ======================
+# ====================== DEVOLUCIONES ======================
 class Devolucion(models.Model):
-    """
-    Modelo para gestionar las devoluciones de productos.
-    Los clientes pueden solicitar devoluciones y los admins pueden aprobarlas o rechazarlas.
-    """
     ESTADOS = [
         ('Pendiente', 'Pendiente'),
         ('Aprobada', 'Aprobada'),
         ('Rechazada', 'Rechazada'),
     ]
-    
-    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,related_name='devoluciones',verbose_name='Usuario'
-    )
-    producto = models.ForeignKey('productos.Producto', on_delete=models.CASCADE,verbose_name='Producto')
-    pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE,related_name='devoluciones',verbose_name='Pedido')
-    motivo = models.TextField(verbose_name='Motivo de devolución')
-    estado = models.CharField(max_length=20, choices=ESTADOS, default='Pendiente',verbose_name='Estado')
-    fecha_solicitud = models.DateTimeField(auto_now_add=True,verbose_name='Fecha de solicitud')
-    fecha_respuesta = models.DateTimeField(null=True, blank=True,verbose_name='Fecha de respuesta')
-    # Fotos del producto (guardadas como Base64 o URLs)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='devoluciones')
+    producto = models.ForeignKey('productos.Producto', on_delete=models.CASCADE)
+    pedido = models.ForeignKey('Pedido', on_delete=models.CASCADE, related_name='devoluciones')
+    unidad_producto = models.ForeignKey('productos.UnidadProducto', on_delete=models.SET_NULL, null=True, blank=True)
+    item = models.ForeignKey('PedidoItem', on_delete=models.CASCADE, null=True, blank=True, related_name='devoluciones')
+    motivo = models.TextField()
+    estado = models.CharField(max_length=20, choices=ESTADOS, default='Pendiente')
+    fecha_solicitud = models.DateTimeField(auto_now_add=True)
+    fecha_respuesta = models.DateTimeField(null=True, blank=True)
     foto1 = CloudinaryField('foto1', blank=True, null=True)
     foto2 = CloudinaryField('foto2', blank=True, null=True)
     foto3 = CloudinaryField('foto3', blank=True, null=True)
-    unidad = models.PositiveIntegerField(default=1, verbose_name='Unidad del producto')
-    item = models.ForeignKey(PedidoItem, on_delete=models.CASCADE, related_name='devoluciones', null=True, blank=True)
-    seleccionada = models.BooleanField(default=False, verbose_name='Seleccionada por el usuario')
-    
+    unidad = models.PositiveIntegerField(default=1)
+    seleccionada = models.BooleanField(default=False)
+
     class Meta:
         verbose_name = 'Devolución'
         verbose_name_plural = 'Devoluciones'
         ordering = ['-fecha_solicitud']
-    
+
     def __str__(self):
         return f"Devolución #{self.id} - {self.usuario.nombre} - {self.estado}"
-    
+
     def get_fotos(self):
-        """Retorna lista de fotos no vacías"""
         fotos = []
         if self.foto1:
             fotos.append(self.foto1.url)
@@ -137,11 +122,9 @@ class Devolucion(models.Model):
         if self.foto3:
             fotos.append(self.foto3.url)
         return fotos
-# ====================== FIN MODELO DE DEVOLUCIONES ======================
 
-# ====================== MODELO DE HISTORIAL DEVOLUCIONES ======================
 class HistorialDevolucion(models.Model):
-    devolucion = models.ForeignKey(Devolucion, on_delete=models.CASCADE, related_name='historial')
+    devolucion = models.ForeignKey('Devolucion', on_delete=models.CASCADE, related_name='historial')
     estado = models.CharField(max_length=20, choices=Devolucion.ESTADOS)
     fecha_cambio = models.DateTimeField(auto_now_add=True)
     usuario_admin = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
@@ -155,46 +138,35 @@ class HistorialDevolucion(models.Model):
     def __str__(self):
         return f"Devolución #{self.devolucion.id} - {self.estado} - {self.fecha_cambio}"
 
-
-# ====================== FIN DE HISTORIAL DEVOLUCIONES ======================
-
-# ====================== MODELO DE DIRECCIÓN (NUEVO) ======================
+# ====================== DIRECCIÓN ======================
 class Direccion(models.Model):
-    """
-    Modelo para almacenar las direcciones de envío de los usuarios.
-    Un usuario puede tener múltiples direcciones guardadas.
-    """
-    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='direcciones', verbose_name='Usuario')
-    nombre_completo = models.CharField(max_length=200, verbose_name='Nombre completo')
-    telefono = models.CharField(max_length=20, verbose_name='Teléfono')
-    direccion_completa = models.TextField(verbose_name='Dirección completa')
-    ciudad = models.CharField(max_length=100, verbose_name='Ciudad')
-    codigo_postal = models.CharField(max_length=20, blank=True, verbose_name='Código postal')
-    notas_entrega = models.TextField(blank=True, verbose_name='Notas de entrega')
-    es_principal = models.BooleanField(default=False, verbose_name='Dirección principal')
-    fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
-    
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='direcciones')
+    nombre_completo = models.CharField(max_length=200)
+    telefono = models.CharField(max_length=20)
+    direccion_completa = models.TextField()
+    ciudad = models.CharField(max_length=100)
+    codigo_postal = models.CharField(max_length=20, blank=True)
+    notas_entrega = models.TextField(blank=True)
+    es_principal = models.BooleanField(default=False)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+
     class Meta:
         verbose_name = 'Dirección'
         verbose_name_plural = 'Direcciones'
         ordering = ['-es_principal', '-fecha_creacion']
-    
+
     def __str__(self):
         return f"{self.nombre_completo} - {self.ciudad}"
-    
+
     def save(self, *args, **kwargs):
-        # Si esta dirección se marca como principal, desmarcar las demás del usuario
         if self.es_principal:
-            # 🔥 IMPORTANTE: Excluir la dirección actual para evitar conflictos
             Direccion.objects.filter(usuario=self.usuario, es_principal=True).exclude(pk=self.pk).update(es_principal=False)
         super().save(*args, **kwargs)
-# ====================== FIN MODELO DE DIRECCIÓN ======================
 
-# ====================== INICIO DE REEMPLAZO ======================
+# ====================== REEMPLAZOS ======================
 class Reemplazo(models.Model):
-    """Registra los productos enviados como reemplazo tras una devolución aprobada"""
-    devolucion = models.OneToOneField(Devolucion,on_delete=models.CASCADE, related_name='reemplazo')
-    producto = models.ForeignKey(Producto, on_delete=models.CASCADE)
+    devolucion = models.OneToOneField('Devolucion', on_delete=models.CASCADE, related_name='reemplazo')
+    producto = models.ForeignKey('productos.Producto', on_delete=models.CASCADE)
     cantidad = models.PositiveIntegerField(default=1)
     fecha_envio = models.DateTimeField(auto_now_add=True)
 

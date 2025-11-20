@@ -12,7 +12,7 @@ import os
 import google.generativeai as genai
 import json
 from .forms import registerProduc, Carrito, ProductoForm, CategoriaForm
-from .models import Producto, Category, Servicio, Calificacion, CarritoItem
+from .models import Producto, Category, Servicio, Calificacion, CarritoItem, UnidadProducto
 from usuarios.models import Usuario, Pedido, PedidoItem
 from usuarios.decorators import admin_required
 from usuarios.models import Devolucion, Pedido  # Importar de usuarios
@@ -446,8 +446,11 @@ def homeSoft(request):
 # ========== IMPORTS PARA VISTA DE DEVOLUCIONES ==========                                                                                                                                     
 @login_required
 def devoluciones(request):
-    """Vista para que el cliente solicite devoluciones por unidad"""
+    from productos.models import UnidadProducto
+    from usuarios.models import PedidoItem, Pedido
+    from productos.models import Producto
 
+    # Pedidos de los últimos 30 días
     hace_30_dias = timezone.now() - timedelta(days=30)
     pedidos = Pedido.objects.filter(
         usuario=request.user,
@@ -491,88 +494,52 @@ def devoluciones(request):
 
     # ===================== POST =====================
     if request.method == 'POST':
-        pedido_id = int(request.POST.get('pedido_id'))
+        unidad_producto_id = request.POST.get('unidad_producto_id')
         motivo = request.POST.get('motivo')
         foto1 = request.FILES.get('foto1')
         foto2 = request.FILES.get('foto2')
         foto3 = request.FILES.get('foto3')
-        producto_id, unidad = map(int, request.POST.get('producto_id').split('-'))
 
-        if not producto_id or not pedido_id or not motivo or not unidad:
-            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-                return JsonResponse({"success": False, "mensaje": "Completa todos los campos"})
-            messages.error(request, "Por favor completa todos los campos obligatorios")
-            return redirect('productos:devoluciones')
+        if not unidad_producto_id or not motivo:
+            return JsonResponse({"success": False, "mensaje": "Completa todos los campos"}) if request.headers.get('x-requested-with') == 'XMLHttpRequest' else redirect('productos:devoluciones')
 
-        try:
-            producto = Producto.objects.get(id=producto_id)
-            pedido = Pedido.objects.get(id=pedido_id, usuario=request.user, estado='entregado')
+        unidad_producto = UnidadProducto.objects.get(id=unidad_producto_id)
 
-            pedido_item = pedido.items.filter(producto=producto).first()
+        if unidad_producto.estado != 'disponible':
+            return JsonResponse({"success": False, "mensaje": "Esta unidad ya fue devuelta"})
 
-            if not pedido_item:
-                if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-                    return JsonResponse({"success": False, "mensaje": "No se encontró el producto en el pedido"})
-                messages.error(request, "No se encontró el producto en el pedido")
-                return redirect('productos:devoluciones')
-            
-            devolucion_existente = Devolucion.objects.filter(
-                usuario=request.user,
-                producto=producto,
-                pedido=pedido,
-                unidad=unidad,
-                estado='Pendiente'
-            ).exists()
+        # Crear la devolución
+        devolucion = Devolucion(
+            usuario=request.user,
+            producto=unidad_producto.producto,
+            pedido=unidad_producto.pedido_item.pedido,
+            item=unidad_producto.pedido_item,
+            unidad_producto=unidad_producto,
+            motivo=motivo,
+            estado='Pendiente',
+            unidad=1,
+            seleccionada=True
+        )
 
-            if devolucion_existente:
-                if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-                    return JsonResponse({"success": False, "mensaje": "Ya existe una devolución para esta unidad"})
-                messages.warning(request, "Ya existe una solicitud de devolución para esta unidad.")
-                return redirect('productos:devoluciones')
+        if foto1:
+            devolucion.foto1 = foto1
+        if foto2:
+            devolucion.foto2 = foto2
+        if foto3:
+            devolucion.foto3 = foto3
 
-            devolucion = Devolucion(
-                usuario=request.user,
-                producto=producto,
-                pedido=pedido,
-                item=pedido_item,
-                motivo=motivo,
-                estado='Pendiente',
-                unidad=unidad,
-                seleccionada=True
-            )
-            
-            if foto1:
-                devolucion.foto1 = foto1
-            if foto2:
-                devolucion.foto2 = foto2
-            if foto3:
-                devolucion.foto3 = foto3
+        devolucion.save()
 
-            devolucion.save()
+        # Marcar unidad como devuelta temporalmente
+        unidad_producto.estado = 'devuelto'
+        unidad_producto.save()
 
-            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-                return JsonResponse({
-                    "success": True,
-                    "producto_id": producto.id,
-                    "pedido_id": pedido.id,
-                    "unidad": unidad,
-                    "mensaje": f"Devolución #{devolucion.id} enviada"
-                })
+        return JsonResponse({"success": True, "mensaje": f"Devolución #{devolucion.id} enviada"})
 
-            messages.success(request, f"✅ Solicitud de devolución #{devolucion.id} enviada exitosamente!")
-            return redirect('productos:devoluciones')
-
-        except Exception as e:
-            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-                return JsonResponse({"success": False, "mensaje": str(e)})
-            messages.error(request, f"Error al crear la devolución: {str(e)}")
-            return redirect('productos:devoluciones')
-
+    # Preparar contexto
     productos_json = json.dumps(productos_devolubles)
-    mis_devoluciones = Devolucion.objects.filter(
-        usuario=request.user
-    ).select_related('producto', 'pedido').order_by('-fecha_solicitud')
-    paginator = Paginator(mis_devoluciones, 5)  # 10 devoluciones por página
+    mis_devoluciones = Devolucion.objects.filter(usuario=request.user).select_related('producto', 'pedido').order_by('-fecha_solicitud')
+    paginator = Paginator(mis_devoluciones, 5)
     page_number = request.GET.get('page')
     devoluciones_page = paginator.get_page(page_number)
 
@@ -583,7 +550,6 @@ def devoluciones(request):
     }
 
     return render(request, 'productos/devoluciones.html', context)
-
 
 # Configurar la API Key de Gemini
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
